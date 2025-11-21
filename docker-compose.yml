@@ -1,29 +1,41 @@
-version: '3'
-
 services:
   mauticdb:
-    image: percona/percona-server:5.7
+    image: mariadb:10.11
     container_name: mauticdb
     restart: always
     volumes:
       - ./mautic/mysql_data:/var/lib/mysql
     environment:
       - MYSQL_ROOT_PASSWORD=${MAUTIC_DB_PASSWORD}
+      - MYSQL_DATABASE=${MAUTIC_DB_NAME}
+      - MARIADB_AUTO_UPGRADE=1
     command: --character-set-server=utf8mb4 --collation-server=utf8mb4_general_ci
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   mautic:
-    image: mautic/mautic:v4
+    image: mautic/mautic:latest
     container_name: mautic
     restart: always
     links:
       - mauticdb:mysql
     depends_on:
-      - mauticdb
+      mauticdb:
+        condition: service_healthy
     ports:
       - ${MAUTIC_PORT}:80
     volumes:
       - ./mautic/mautic_data:/var/www/html
+      - ./mautic/mautic_data/config:/var/www/html/config
+      - ./mautic/mautic_data/var/logs:/var/www/html/var/logs
+      - ./mautic/mautic_data/docroot/media/files:/var/www/html/docroot/media/files
+      - ./mautic/mautic_data/docroot/media/images:/var/www/html/docroot/media/images
     environment:
+      - DOCKER_MAUTIC_ROLE=mautic_web
       - MAUTIC_DB_HOST=mauticdb
       - MYSQL_PORT_3306_TCP=3306
       - MAUTIC_DB_USER=${MAUTIC_DB_USER}
